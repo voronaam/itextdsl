@@ -5,26 +5,15 @@ import com.lowagie.text.pdf.PdfWriter
 import com.lowagie.text.Paragraph
 import java.io.FileOutputStream
 
-object PDF {
-  import PDF._
-  
-  def file(path: String) = {
-    val pdf = new PDF
-    PdfWriter.getInstance(pdf.document, new FileOutputStream(path));
-    pdf.document.open()
-    pdf
-  }
-}
+abstract class PDF extends Document {
 
-class PDF {
-  val document = new Document();
-  
-  /**
-   * Create a document of a single paragraph
-   */
-  def apply(p: Paragraph) {
-    document.add(p)
-    document.close();
+  def file(path: String) {
+    PdfWriter.getInstance(this, new FileOutputStream(path));
+    open()
   }
-
+  
+  def paragraph(contents: String) {
+    add(new Paragraph(contents))
+  }
+  
 }
