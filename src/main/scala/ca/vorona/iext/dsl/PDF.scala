@@ -9,6 +9,9 @@ import com.lowagie.text.Chunk
 import com.lowagie.text.Font
 import java.awt.Color
 import scala.AnyVal
+import scala.collection.mutable.Queue
+import com.lowagie.text.Element
+import scala.collection.generic.CanBuildFrom
 
 /**
  * Main class for PDF DSL
@@ -18,7 +21,7 @@ abstract class PDF extends Document {
   // The state of the PDF generator
   val state = new AnyRef {
     var font: OneTimeOption[Font] = None
-    var chunk: OneTimeOption[Chunk] = None
+    val elements: MapQueue[Element] = Queue[Element]()
     var background: OneTimeOption[Color]= None
   }
 
@@ -28,16 +31,19 @@ abstract class PDF extends Document {
   }
 
   def paragraph(contents: String) {
-    add(new Paragraph(contents))
+    val para = new Paragraph(contents)
+    state.elements.map(para.add)
+    add(para)
   }
 
-  def paragraph(contents: Phrase) {
-    add(new Paragraph(contents))
+  def paragraph(contents: Element) {
+    paragraph("")
   }
 
   def phrase(body: String) = {
     val phrase = new Phrase(body)
-    state.chunk.map(phrase.add)
+    state.elements.map(_.isInstanceOf[Chunk], phrase.add)
+    state.elements.enqueue(phrase)
     phrase
   }
 
@@ -45,7 +51,7 @@ abstract class PDF extends Document {
     val chunk = new Chunk(body)
     state.font.map(chunk.setFont)
     state.background.map(chunk.setBackground)
-    state.chunk = Some(chunk)
+    state.elements.enqueue(chunk)
     chunk
   }
 
@@ -92,6 +98,20 @@ abstract class PDF extends Document {
         used = true
         r
       }
+  }
+  
+  /**
+   * Queue that dequeues on map
+   * TODO: fix broken enqueue varargs
+   */
+  implicit class MapQueue[A](val o: Queue[A]) {
+    def map[B, That](f: A => B) = {
+      o.dequeueAll(_ => true).map(f)
+    }
+    def map[B, That](selector: A => Boolean, f: A => B) = {
+      o.dequeueAll(selector).map(f)
+    }
+    def enqueue(elems: A): Unit = o.enqueue(elems)
   }
 
 

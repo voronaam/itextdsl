@@ -21,8 +21,12 @@ object DslTest extends App {
           background(rgb"ffe400")
           "testing text element "
         }
+        chunk("second chunk ")
+        chunk("third chunk ")
         "This is initial text. "
       }
+      phrase("Second Phrase. ")
+      phrase("Third Phrase. ")
     }
     close()
   }
