@@ -13,6 +13,16 @@ import scala.collection.mutable.Queue
 import com.lowagie.text.Element
 import scala.collection.generic.CanBuildFrom
 
+object PDF {
+  // static membervariables for the different styles
+  val NORMAL = 0;
+  val BOLD = 1;
+  val ITALIC = 2;
+  val UNDERLINE = 4;
+  val STRIKETHRU = 8;
+  val BOLDITALIC = BOLD | ITALIC;
+}
+
 /**
  * Main class for PDF DSL
  */
@@ -20,11 +30,11 @@ abstract class PDF extends Document {
 
   // The state of the PDF generator
   val state = new AnyRef {
-    var font: OneTimeOption[Font] = None
     val elements: MapQueue[Element] = Queue[Element]()
-    var background: OneTimeOption[Color]= None
+    val commands: MapQueue[Command] = Queue[Command]()
   }
 
+  // Define the file to save the PDF to
   def file(path: String) {
     PdfWriter.getInstance(this, new FileOutputStream(path));
     open()
@@ -35,38 +45,50 @@ abstract class PDF extends Document {
     state.elements.map(para.add)
     add(para)
   }
-
-  def paragraph(contents: Element) {
-    paragraph("")
-  }
+  def paragraph(contents: Element): Unit = paragraph("")
 
   def phrase(body: String) = {
     val phrase = new Phrase(body)
+    state.commands.map(_(phrase))
     state.elements.map(_.isInstanceOf[Chunk], phrase.add)
     state.elements.enqueue(phrase)
     phrase
   }
+  def phrase(contents: Element): Phrase = phrase("")
+
+  def leading(l: Float) {
+    state.commands.enqueue(new Command() {
+      def apply(e: Element) {
+        e.asInstanceOf[AnyRef { def setLeading(l: Float) }].setLeading(l)
+      }
+    })
+  }
 
   def chunk(body: String) = {
     val chunk = new Chunk(body)
-    state.font.map(chunk.setFont)
-    state.background.map(chunk.setBackground)
+    state.commands.map(_(chunk))
     state.elements.enqueue(chunk)
     chunk
   }
 
-  def font(size: Int = 0, family: Int = 0, style: Int = 0, color: Color = null) = {
+  def font(size: Int = 10, family: Int = 0, style: Int = 0, color: Color = null) = {
     val font = new Font(family, size, style)
     if (color != null) {
       font.setColor(color)
     }
-    state.font = Some(font)
-    font
+    state.commands.enqueue(new Command() {
+      def apply(e: Element) {
+        e.asInstanceOf[AnyRef { def setFont(f: Font) }].setFont(font)
+      }
+    })
   }
 
   def background(color: Color) = {
-    state.background = Some(color)
-    color
+    state.commands.enqueue(new Command() {
+      def apply(e: Element) {
+        e.asInstanceOf[AnyRef { def setBackground(c: Color) }].setBackground(color)
+      }
+    })
   }
 
   /**
@@ -85,35 +107,32 @@ abstract class PDF extends Document {
       new Color(r, g, b)
     }
   }
-  
+
   /**
-   * An option that can be used only once.
-   * TODO: Should also change other methods (such as get()) do the same
-   */
-  implicit class OneTimeOption[A](val o: Option[A]) {
-    var used = false
-    final def map[B](f: A => B): Option[B] =
-      if (used || o.isEmpty) None else {
-        val r = Some(f(o.get))
-        used = true
-        r
-      }
-  }
-  
-  /**
-   * Queue that dequeues on map
+   * Queue that dequeues on map and enqueues back any failed to apply.
+   * Also, its map returns Unit - this is necessary to be able to enqueue back items that failed to apply.
    * TODO: fix broken enqueue varargs
    */
   implicit class MapQueue[A](val o: Queue[A]) {
-    def map[B, That](f: A => B) = {
-      o.dequeueAll(_ => true).map(f)
+    def map[B](f: A => B) {
+      o.dequeueAll(_ => true).map(safeApply(f))
     }
-    def map[B, That](selector: A => Boolean, f: A => B) = {
+    def map[B](selector: A => Boolean, f: A => B) {
       o.dequeueAll(selector).map(f)
+    }
+    def safeApply[B](f: A => B)(item: A) {
+      try {
+        f(item)
+      } catch {
+        case e: Exception => o.enqueue(item)
+      }
     }
     def enqueue(elems: A): Unit = o.enqueue(elems)
   }
 
+  abstract class Command {
+    def apply(e: Element): Unit
+  }
 
 }
 class PdfException(msg: String) extends RuntimeException(msg)

@@ -1,28 +1,21 @@
 import ca.vorona.iext.dsl.PDF
+import ca.vorona.iext.dsl.PDF._
 import java.util.Date
 
 object DslTest extends App {
-
-  import com.lowagie.text.Font;
   
   new PDF {
     file("/tmp/HelloWorld.pdf")
-    paragraph(s"Hello World ${new Date()}")
+    paragraph(s"Hello World ${new Date()}!")
     
     paragraph {
       phrase {
         chunk {
-          font (
-            family = Font.COURIER,
-            size = 10,
-            style = Font.BOLD,
-            color = rgb"929083"
-          )
+          font (style = BOLD, color = rgb"0x929083")
           background(rgb"ffe400")
           "testing text element "
         }
-        chunk("second chunk ")
-        chunk("third chunk ")
+        for(i <- 1 to 10) chunk(s"Chunk number $i ")
         "This is initial text. "
       }
       phrase("Second Phrase. ")
