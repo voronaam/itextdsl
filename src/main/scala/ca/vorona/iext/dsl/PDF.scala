@@ -10,8 +10,10 @@ import com.lowagie.text.Font
 import java.awt.Color
 import scala.AnyVal
 import scala.collection.mutable.Queue
+import scala.collection.mutable.Stack
 import com.lowagie.text.Element
 import scala.collection.generic.CanBuildFrom
+import com.lowagie.text.TextElementArray
 
 object PDF {
   // static membervariables for the different styles
@@ -21,6 +23,8 @@ object PDF {
   val UNDERLINE = 4;
   val STRIKETHRU = 8;
   val BOLDITALIC = BOLD | ITALIC;
+  
+  def noop = Unit
 }
 
 /**
@@ -28,47 +32,53 @@ object PDF {
  */
 abstract class PDF extends Document {
 
-  // The state of the PDF generator
-  val state = new AnyRef {
-    val elements: MapQueue[Element] = Queue[Element]()
-    val commands: MapQueue[Command] = Queue[Command]()
-  }
-
   // Define the file to save the PDF to
   def file(path: String) {
     PdfWriter.getInstance(this, new FileOutputStream(path));
     open()
   }
-
-  def paragraph(contents: String) {
-    val para = new Paragraph(contents)
+  
+  def paragraph(body: =>Any = PDF.noop, text: String = ""): Unit = {
+    val state = call(body)
+    val para = new Paragraph(text)
+    state.commands.map(_(para))
     state.elements.map(para.add)
     add(para)
   }
-  def paragraph(contents: Element): Unit = paragraph("")
+  def paragraph(text: String): Unit = paragraph(PDF.noop, text)
 
-  def phrase(body: String) = {
-    val phrase = new Phrase(body)
+  def phrase(body: =>Any = PDF.noop, text: String = "") = {
+    val state = call(body)
+    val phrase = new Phrase(text)
     state.commands.map(_(phrase))
-    state.elements.map(_.isInstanceOf[Chunk], phrase.add)
-    state.elements.enqueue(phrase)
-    phrase
+    state.elements.map(phrase.add)
+    enqueueElement(phrase)
   }
-  def phrase(contents: Element): Phrase = phrase("")
+  def phrase(text: String): Unit = phrase(PDF.noop, text)
+
+  def chunk(body: =>Any, text: String = "") = {
+    val state = call(body)
+    val chunk = new Chunk(text)
+    state.commands.map(_(chunk))
+    enqueueElement(chunk)
+  }
+  def chunk(text: String): Unit = chunk(PDF.noop, text)
+
 
   def leading(l: Float) {
-    state.commands.enqueue(new Command() {
+    enqueueCommand(new Command("leading") {
       def apply(e: Element) {
         e.asInstanceOf[AnyRef { def setLeading(l: Float) }].setLeading(l)
       }
     })
   }
 
-  def chunk(body: String) = {
-    val chunk = new Chunk(body)
-    state.commands.map(_(chunk))
-    state.elements.enqueue(chunk)
-    chunk
+  def text(text: String) {
+    enqueueCommand(new Command("text") {
+      def apply(e: Element) {
+        e.asInstanceOf[AnyRef { def append(s: String) }].append(text)
+      }
+    })
   }
 
   def font(size: Int = 10, family: Int = 0, style: Int = 0, color: Color = null) = {
@@ -76,15 +86,15 @@ abstract class PDF extends Document {
     if (color != null) {
       font.setColor(color)
     }
-    state.commands.enqueue(new Command() {
+    enqueueCommand(new Command("font") {
       def apply(e: Element) {
         e.asInstanceOf[AnyRef { def setFont(f: Font) }].setFont(font)
       }
     })
   }
 
-  def background(color: Color) = {
-    state.commands.enqueue(new Command() {
+  def background(color: Color) {
+    enqueueCommand(new Command("background") {
       def apply(e: Element) {
         e.asInstanceOf[AnyRef { def setBackground(c: Color) }].setBackground(color)
       }
@@ -124,15 +134,44 @@ abstract class PDF extends Document {
       try {
         f(item)
       } catch {
-        case e: Exception => o.enqueue(item)
+        case e: Exception => throw new PdfException(s"Incorrect location for ${item.toString}()")
       }
     }
     def enqueue(elems: A): Unit = o.enqueue(elems)
   }
 
-  abstract class Command {
+  abstract class Command(val name: String) {
     def apply(e: Element): Unit
+    override def toString() = name
   }
+  
+  private class State() {
+    // Child elements - in order
+    val elements: MapQueue[Element] = Queue[Element]()
+    // Changes to apply to the current element
+    val commands: MapQueue[Command] = Queue[Command]()
+  }
+
+  // The state of the PDF generator
+  private val stateStack = Stack[State]()
+  
+  private def call(body: =>Unit): State = {
+    val state: State = new State()
+    stateStack.push(state)
+    body
+    stateStack.pop
+  }
+  
+  @inline
+  private def enqueueElement(e: Element) {
+    if(!stateStack.isEmpty) stateStack.top.elements.enqueue(e)
+  }
+  
+  @inline
+  private def enqueueCommand(c: Command) {
+    if(!stateStack.isEmpty) stateStack.top.commands.enqueue(c)
+  }
+
 
 }
 class PdfException(msg: String) extends RuntimeException(msg)
