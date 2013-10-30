@@ -24,15 +24,16 @@ Sample PDF definition:
     
     paragraph {
       phrase {
+        chunk("This is initial text. ")
         chunk {
-          font (style = BOLD, color = rgb"0x929083")
+          text("testing text element ")
+          font(style = BOLD, color = rgb"0x929083")
           background(rgb"ffe400")
-          "testing text element "
         }
-        for(i <- 1 to 10) chunk(s"Chunk number $i ")
-        "This is initial text. "
+        for (i <- 1 to 10) chunk(s"Chunk number $i ")
       }
       phrase("Second Phrase. ")
+      chunk("Chunk in the middle ")
       phrase("Third Phrase. ")
     }
     close()
@@ -41,18 +42,38 @@ Sample PDF definition:
 
 Couple of notes:
 - You can define colors using RGB in hex: rgb"0xRRGGBB"
-- You may specify semantically incorrect PDFs, for example set background on a phrase. That will not throw an exception. Any instruction is applied to the first element it makes sense to. For example:
+- You may NOT specify a semantically incorrect PDF. You will get an exception stating an error if you try, for example, set a backgorund on Phrase (background should be set on Chunk).
 
 ```scala
-// Background applies to the second chunk - move it inside first chank's brackets to apply to it.
 phrase {
   chunk { "chunk 1" }
-  background(rgb"0xFF0000")
+  background(rgb"0xFF0000") // Thows an exception PdfException: Incorrect location for background()
 }
 phrase {
   chunk { "chunk 2" }
 }
 ```
+
+There are several way to express the same. There are convinience helper functions. For example, all of the following generate identical PDF:
+
+```scala
+    paragraph("text")
+
+    paragraph{"text"}
+    
+    paragraph {
+      chunk("text")
+    }
+    
+    paragraph {
+      chunk{"text"}
+    }
+    
+    paragraph {
+      chunk { text("text") }
+    }
+```
+
 
 - You do not have to specify file() and close() directives. In that case you may use newly constructed PDF instance the same way you would use com.lowagie.text.Document (PDF extends it).
 
