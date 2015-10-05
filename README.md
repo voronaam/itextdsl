@@ -42,7 +42,7 @@ Sample PDF definition:
 
 Couple of notes:
 - You can define colors using RGB in hex: rgb"0xRRGGBB"
-- You may NOT specify a semantically incorrect PDF. You will get an exception stating an error if you try, for example, set a backgorund on Phrase (background should be set on Chunk).
+- You may NOT specify a semantically incorrect PDF. You will get an exception stating an error if you try, for example, set a background on Phrase (background should be set on Chunk).
 
 ```scala
 phrase {
