@@ -1,19 +1,19 @@
 package ca.vorona.iext.dsl
 
-import com.lowagie.text.Document
-import com.lowagie.text.pdf.PdfWriter
-import com.lowagie.text.Paragraph
+import com.itextpdf.text.Document
+import com.itextpdf.text.pdf.PdfWriter
+import com.itextpdf.text.Paragraph
 import java.io.FileOutputStream
-import com.lowagie.text.Phrase
-import com.lowagie.text.Chunk
-import com.lowagie.text.Font
-import java.awt.Color
+import com.itextpdf.text.Phrase
+import com.itextpdf.text.Chunk
+import com.itextpdf.text.Font
+import com.itextpdf.text.BaseColor
 import scala.AnyVal
 import scala.collection.mutable.Queue
 import scala.collection.mutable.Stack
-import com.lowagie.text.Element
+import com.itextpdf.text.Element
 import scala.collection.generic.CanBuildFrom
-import com.lowagie.text.TextElementArray
+import com.itextpdf.text.TextElementArray
 
 object PDF {
   // static membervariables for the different styles
@@ -81,8 +81,8 @@ abstract class PDF extends Document {
     })
   }
 
-  def font(size: Int = 10, family: Int = 0, style: Int = 0, color: Color = null) = {
-    val font = new Font(family, size, style)
+  def font(size: Int = 10, family: Option[Font.FontFamily] = None, style: Int = 0, color: BaseColor = null) = {
+    val font = new Font(family.getOrElse(Font.FontFamily.UNDEFINED), size, style)
     if (color != null) {
       font.setColor(color)
     }
@@ -93,19 +93,19 @@ abstract class PDF extends Document {
     })
   }
 
-  def background(color: Color) {
+  def background(color: BaseColor) {
     enqueueCommand(new Command("background") {
       def apply(e: Element) {
-        e.asInstanceOf[AnyRef { def setBackground(c: Color) }].setBackground(color)
+        e.asInstanceOf[AnyRef { def setBackground(c: BaseColor) }].setBackground(color)
       }
     })
   }
 
   /**
-   * Converts string of rgb"0xRRGGBB" type to AWT Color
+   * Converts string of rgb"0xRRGGBB" type to iText Color
    */
   implicit class ColorHelper(val sc: StringContext) {
-    def rgb(args: Any*): Color = {
+    def rgb(args: Any*): BaseColor = {
       val colorDefHex = sc.s()
       val colorDef = if (colorDefHex.startsWith("0x")) colorDefHex.substring(2) else colorDefHex
       if (colorDef.length() != 6) {
@@ -114,7 +114,7 @@ abstract class PDF extends Document {
       val r = Integer.parseInt(colorDef.substring(0, 2), 16)
       val g = Integer.parseInt(colorDef.substring(2, 4), 16)
       val b = Integer.parseInt(colorDef.substring(4, 6), 16)
-      new Color(r, g, b)
+      new BaseColor(r, g, b)
     }
   }
 
